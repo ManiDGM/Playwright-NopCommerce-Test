@@ -21,9 +21,11 @@ class CategoriesSelectors:
 
     FORM: str = "#category-form"
     DELETE_BUTTON: str = "#category-delete"
-    DELETE_CONFIRM_MODAL: str = "#categorymodel-delete-confirmation"
-    DELETE_CONFIRM_SUBMIT: str = "#categorymodel-delete-confirmation button[type='submit']"
-    BACK_TO_LIST: str = "a[href*='/Admin/Category/List']"
+    DELETE_CONFIRM_MODAL: str = "#categorymodel-Delete-delete-confirmation"
+    DELETE_CONFIRM_SUBMIT: str = (
+        "#categorymodel-Delete-delete-confirmation button[type='submit']"
+    )
+    BACK_TO_LIST: str = "a:has-text('back to category list')"
 
     # Distinct from common VALIDATION_SUMMARY (div-prefixed for Category forms)
     VALIDATION_SUMMARY: str = "div.validation-summary-errors"

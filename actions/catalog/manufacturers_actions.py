@@ -4,6 +4,7 @@ from playwright.sync_api import Page
 
 from api.actions.catalog.manufacturers_actions import unique_manufacturer_name
 from pages.catalog.manufacturers_page import ManufacturersPage
+from selectors.catalog.manufacturers_selectors import manufacturers_selectors
 
 
 class ManufacturersActions:
@@ -13,7 +14,7 @@ class ManufacturersActions:
         self.manufacturers_page = ManufacturersPage(page, self.base_url)
 
     def open_manufacturer_list(self) -> None:
-        self.manufacturers_page.navigate_to_list_via_menu()
+        self.manufacturers_page.navigate_to_list()
 
     def create_manufacturer(self, name: str) -> None:
         self.manufacturers_page.click_add_new()
@@ -46,23 +47,24 @@ class ManufacturersActions:
         self.manufacturers_page.click_delete_on_edit()
         self.manufacturers_page.confirm_delete_on_edit()
 
-    def delete_selected_manufacturers(self, names: list[str]) -> None:
+    def delete_selected_manufacturers(
+        self,
+        *,
+        search_term: str,
+        names: list[str],
+    ) -> None:
+        self.search_by_name(search_term)
         for name in names:
-            self.search_by_name(name)
             self.manufacturers_page.select_row_by_name(name)
         self.manufacturers_page.click_delete_selected()
         self.manufacturers_page.confirm_delete_selected()
 
     def navigate_to_manufacturer_list(self) -> None:
-        """Teardown helper: return to Manufacturer list via navigation."""
-        from selectors.catalog.manufacturers_selectors import manufacturers_selectors
-
-        if self.page.locator(manufacturers_selectors.GRID).is_visible():
+        """Teardown helper: return to Manufacturer list (goto avoids modal/nav races)."""
+        grid = self.page.locator(manufacturers_selectors.GRID)
+        if grid.count() and grid.is_visible():
             return
-        if self.page.locator(manufacturers_selectors.FORM).is_visible():
-            self.manufacturers_page.click_back_to_list()
-            return
-        self.manufacturers_page.navigate_to_list_via_menu()
+        self.manufacturers_page.navigate_to_list()
 
     def generate_unique_name(self, prefix: str = "auto") -> str:
         return unique_manufacturer_name(prefix)

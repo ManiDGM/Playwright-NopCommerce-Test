@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -73,7 +74,7 @@ class TestProducts:
         self._created_names.append(name)
 
         expect(products_ui.page).to_have_url(
-            lambda url: "/Admin/Product/List" in url,
+            re.compile(r".*/Admin/Product/List(?:\?.*)?$")
         )
         expect(products_ui.products_page.success_alert()).to_be_visible()
         products_ui.search_by_name(name)
@@ -87,7 +88,7 @@ class TestProducts:
         products_ui.create_product_with_empty_name()
 
         expect(products_ui.page).to_have_url(
-            lambda url: "/Admin/Product/Create" in url,
+            re.compile(r".*/Admin/Product/Create(?:\?.*)?$")
         )
         expect(products_ui.products_page.name_validation_error()).to_be_visible()
 
@@ -106,7 +107,7 @@ class TestProducts:
         self._created_names.append(new_name)
 
         expect(products_ui.page).to_have_url(
-            lambda url: "/Admin/Product/List" in url,
+            re.compile(r".*/Admin/Product/List(?:\?.*)?$")
         )
         products_ui.search_by_name(new_name)
         expect(products_ui.products_page.row_containing_name(new_name)).to_be_visible()
@@ -124,7 +125,7 @@ class TestProducts:
         products_ui.delete_product_from_edit(name)
 
         expect(products_ui.page).to_have_url(
-            lambda url: "/Admin/Product/List" in url,
+            re.compile(r".*/Admin/Product/List(?:\?.*)?$")
         )
         products_ui.search_by_name(name)
         expect(products_ui.products_page.row_containing_name(name)).to_have_count(0)
@@ -134,21 +135,28 @@ class TestProducts:
         products_ui: ProductsActions,
         api_products: ApiProductsActions,
     ) -> None:
-        name_one, response_one = api_products.create_random()
-        name_two, response_two = api_products.create_random()
+        search_term = products_ui.generate_unique_name("auto_bulk")
+        name_one = f"{search_term}_one"
+        name_two = f"{search_term}_two"
+
+        response_one = api_products.create(name_one)
+        response_two = api_products.create(name_two)
         log_data("API seed create statuses", {
-            "first": response_one.status,
-            "second": response_two.status,
+            "searchTerm": search_term,
+            "names": [name_one, name_two],
+            "statuses": [response_one.status, response_two.status],
         })
         assert response_one.status in (200, 302), response_one.text()
         assert response_two.status in (200, 302), response_two.text()
 
         log_data("Delete selected targets", [name_one, name_two])
-        products_ui.delete_selected_products([name_one, name_two])
+        products_ui.delete_selected_products(
+            search_term=search_term,
+            names=[name_one, name_two],
+        )
 
-        products_ui.search_by_name(name_one)
+        products_ui.search_by_name(search_term)
         expect(products_ui.products_page.row_containing_name(name_one)).to_have_count(0)
-        products_ui.search_by_name(name_two)
         expect(products_ui.products_page.row_containing_name(name_two)).to_have_count(0)
 
     def test_scenario_8_go_to_product_by_sku(
@@ -171,7 +179,7 @@ class TestProducts:
 
         products_ui.go_to_product_by_sku(sku)
         expect(products_ui.page).to_have_url(
-            lambda url: f"/Admin/Product/Edit/{product_id}" in url,
+            re.compile(rf".*/Admin/Product/Edit/{product_id}(?:\?.*)?$")
         )
         expect(products_ui.page.locator(products_selectors.FORM)).to_be_visible()
         expect(products_ui.page.locator(common_selectors.NAME)).to_have_value(name)

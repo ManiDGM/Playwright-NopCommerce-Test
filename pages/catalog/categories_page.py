@@ -11,20 +11,9 @@ class CategoriesPage:
         self.page = page
         self.base_url = base_url.rstrip("/")
 
-    def _expand_catalog_menu_if_needed(self) -> None:
-        catalog = self.page.locator(common_selectors.NAV_CATALOG)
-        if catalog.count() == 0:
-            return
-
-        parent = catalog.first.locator(
-            "xpath=ancestor::li[contains(@class,'has-treeview')]"
-        )
-        if parent.count() and "menu-open" not in (parent.first.get_attribute("class") or ""):
-            catalog.first.click()
-
-    def navigate_to_list_via_menu(self) -> None:
-        self._expand_catalog_menu_if_needed()
-        self.page.locator(categories_selectors.NAV_CATEGORIES).click()
+    def navigate_to_list(self) -> None:
+        """Open Category list via direct URL (avoids flaky Catalog sidebar expand)."""
+        self.page.goto(f"{self.base_url}{categories_selectors.LIST_URL_PATH}")
         self.wait_for_grid()
 
     def wait_for_grid(self) -> None:

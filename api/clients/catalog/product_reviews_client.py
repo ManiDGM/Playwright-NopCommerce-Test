@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from urllib.parse import urlencode, urlparse
 
 from playwright.sync_api import APIRequestContext, APIResponse
 
 from api.endpoints.catalog.product_reviews_endpoints import PRODUCT_REVIEWS_ENDPOINTS
 from api.types.catalog.product_reviews_types import ProductReviewPayload
 from support.session_helpers import (
+    ANTIFORGERY_TOKEN_NAME,
     attach_antiforgery_token,
     extract_antiforgery_token,
     fetch_antiforgery_token,
@@ -65,10 +66,15 @@ class ProductReviewsClient:
         return self.request.post(PRODUCT_REVIEWS_ENDPOINTS.delete(review_id), form=form)
 
     def _post_selected(self, endpoint: str, selected_ids: list[int]) -> APIResponse:
+        """POST selected-ids actions with repeated selectedIds (ASP.NET collection binding)."""
         token = self._fetch_token()
-        data: dict[str, Any] = attach_antiforgery_token({}, token)
-        data["selectedIds"] = [str(review_id) for review_id in selected_ids]
-        return self.request.post(endpoint, form=data)
+        fields: list[tuple[str, str]] = [(ANTIFORGERY_TOKEN_NAME, token)]
+        fields.extend(("selectedIds", str(review_id)) for review_id in selected_ids)
+        return self.request.post(
+            endpoint,
+            data=urlencode(fields),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
 
     def approve_selected(self, selected_ids: list[int]) -> APIResponse:
         return self._post_selected(PRODUCT_REVIEWS_ENDPOINTS.APPROVE_SELECTED, selected_ids)
@@ -115,7 +121,16 @@ class ProductReviewsClient:
             raise RuntimeError(
                 f"Failed to open storefront product page /{slug}: HTTP {page_response.status}",
             )
-        token = extract_antiforgery_token(page_response.text())
+        html = page_response.text()
+        if 'id="review-form"' not in html and "id='review-form'" not in html:
+            raise RuntimeError(
+                f"Storefront review form not available on /{slug} "
+                "(product may disallow reviews or customer cannot leave a review)",
+            )
+        token = extract_antiforgery_token(html)
+        action_path = self._extract_review_form_action(html) or (
+            f"/Product/ProductReviews/{product_id}"
+        )
         form = attach_antiforgery_token(
             {
                 "ProductId": str(product_id),
@@ -125,7 +140,25 @@ class ProductReviewsClient:
             },
             token,
         )
-        return self.request.post(
-            f"/Product/ProductReviews/{product_id}",
-            form=form,
+        return self.request.post(action_path, form=form)
+
+    @staticmethod
+    def _extract_review_form_action(html: str) -> str | None:
+        match = re.search(
+            r'id=["\']review-form["\'][\s\S]{0,800}?<form[^>]*action=["\']([^"\']+)["\']',
+            html,
+            re.IGNORECASE,
         )
+        if not match:
+            match = re.search(
+                r'<form[^>]*action=["\']([^"\']*ProductReviews[^"\']*)["\']',
+                html,
+                re.IGNORECASE,
+            )
+        if not match:
+            return None
+        action = match.group(1).strip()
+        parsed = urlparse(action)
+        if parsed.scheme and parsed.netloc:
+            return parsed.path + (f"?{parsed.query}" if parsed.query else "")
+        return action

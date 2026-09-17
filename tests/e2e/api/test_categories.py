@@ -86,11 +86,22 @@ class TestCategoriesApi:
         response_text = response.text()
         log_data("Create response status", response.status)
         log_data("Create response url", response.url)
+        log_data(
+            "Create response validation markers",
+            {
+                "has_name_valmsg": 'data-valmsg-for="Name"' in response_text,
+                "has_field_validation_error": "field-validation-error" in response_text,
+                "has_validation_summary": "validation-summary-errors" in response_text,
+            },
+        )
 
+        # Empty Name fails FluentValidation; nopCommerce redisplays Create (200 HTML).
+        # Do not assert response.url — Playwright may report List after follow/redirect quirks.
         assert response.status == 200
-        assert "/Admin/Category/Create" in response.url
         assert 'data-valmsg-for="Name"' in response_text
         assert "field-validation-error" in response_text
+        assert 'id="category-form"' in response_text
+        assert "Admin.Catalog.Categories.Added" not in response_text
 
     def test_scenario_5_edit_category_name(
         self,
@@ -179,13 +190,26 @@ class TestCategoriesApi:
         log_data("DeleteSelected request ids", selected_ids)
 
         delete_response = categories_api.delete_selected(selected_ids)
-        delete_body = delete_response.json() if delete_response.ok else delete_response.text()
+        response_text = delete_response.text()
         log_data("DeleteSelected response status", delete_response.status)
-        log_data("DeleteSelected response body", delete_body)
+        log_data("DeleteSelected response body", response_text)
 
+        # Controller returns Json({ Result = true }) on success, or 204 NoContent
+        # when selectedIds did not bind. Prefer JSON when present; always verify list.
+        delete_body: dict | None = None
+        if response_text.strip():
+            try:
+                delete_body = delete_response.json()
+            except (ValueError, json.JSONDecodeError):
+                delete_body = None
+        log_data("DeleteSelected parsed body", delete_body)
+
+        assert delete_response.status != 204, "selectedIds did not bind (NoContent)"
         assert delete_response.ok
-        assert delete_body.get("Result") is True
+        if delete_body is not None:
+            assert delete_body.get("Result") is True
 
+        # Always verify deletion via list search, even when body is empty/non-JSON.
         for name in (name_one, name_two):
             remaining = categories_api.parse_list_response(categories_api.list(search_name=name))
             log_data("Post-delete-selected list body", {"name": name, "body": remaining})

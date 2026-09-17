@@ -14,7 +14,7 @@ class CategoriesActions:
         self.categories_page = CategoriesPage(page, self.base_url)
 
     def open_category_list(self) -> None:
-        self.categories_page.navigate_to_list_via_menu()
+        self.categories_page.navigate_to_list()
 
     def create_category(self, name: str) -> None:
         self.categories_page.click_add_new()
@@ -55,17 +55,11 @@ class CategoriesActions:
         self.categories_page.confirm_delete_selected()
 
     def navigate_to_category_list(self) -> None:
-        """Teardown helper: return to Category list via navigation."""
+        """Teardown helper: return to Category list (goto avoids modal/nav races)."""
         grid = self.page.locator(categories_selectors.GRID)
         if grid.count() and grid.is_visible():
             return
-
-        form = self.page.locator(categories_selectors.FORM)
-        if form.count() and form.is_visible():
-            self.categories_page.click_back_to_list()
-            return
-
-        self.categories_page.navigate_to_list_via_menu()
+        self.categories_page.navigate_to_list()
 
     def generate_unique_name(self, prefix: str = "auto") -> str:
         return unique_category_name(prefix)

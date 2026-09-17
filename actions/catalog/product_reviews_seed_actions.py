@@ -4,22 +4,21 @@ from __future__ import annotations
 
 import os
 
-from playwright.sync_api import Page
+from playwright.sync_api import APIRequestContext, Page
 
 from api.actions.catalog.product_reviews_actions import (
     ProductReviewsActions as ApiProductReviewsActions,
     unique_review_text,
     unique_review_title,
 )
-from playwright.sync_api import APIRequestContext
 
 
 class ProductReviewsSeedActions:
     """
     Seed product reviews for admin moderation tests.
 
-    Prefers storefront submission (admin Create does not exist). Falls back to
-    retitling an existing sample-data review via the admin Edit API.
+    Prefers storefront submission (admin Create does not exist). Creates a
+    published product via API when the catalog has no reviews yet.
     """
 
     STOREFRONT_TITLE: str = "#AddProductReview_Title"
@@ -30,20 +29,22 @@ class ProductReviewsSeedActions:
 
     def __init__(
         self,
-        *,
         page: Page | None = None,
         request: APIRequestContext | None = None,
         base_url: str | None = None,
+        *,
+        api_request_context: APIRequestContext | None = None,
     ) -> None:
         self.page = page
-        self.request = request
+        resolved_request = request or api_request_context
         self.base_url = (
             base_url
             or os.environ.get("BASE_URL", "http://localhost:5000")
         ).rstrip("/")
-        if request is None:
+        if resolved_request is None:
             raise ValueError("APIRequestContext is required for product review seeding")
-        self.api = ApiProductReviewsActions(request)
+        self.request = resolved_request
+        self.api = ApiProductReviewsActions(resolved_request)
 
     def seed_unique_review(
         self,
@@ -65,11 +66,29 @@ class ProductReviewsSeedActions:
                 product_id=product_id,
             )
 
-        return self.api.prepare_review_for_edit(
+        return self.api.seed_unique_review(
             title=review_title,
             review_text=text,
             is_approved=is_approved,
+            product_id=product_id,
         )
+
+    def create_review_via_storefront(
+        self,
+        *,
+        title: str | None = None,
+        review_text: str | None = None,
+        is_approved: bool = True,
+        product_id: int | None = None,
+    ) -> str:
+        """Seed a review and return its title (convenience for UI specs)."""
+        _review_id, seeded_title, _text = self.seed_unique_review(
+            title=title,
+            review_text=review_text,
+            is_approved=is_approved,
+            product_id=product_id,
+        )
+        return seeded_title
 
     def _seed_via_storefront_ui(
         self,
@@ -81,15 +100,7 @@ class ProductReviewsSeedActions:
     ) -> tuple[int, str, str]:
         assert self.page is not None
 
-        resolved_product_id = product_id
-        if resolved_product_id is None:
-            existing = self.api.get_first_review()
-            if existing is None or existing.get("ProductId") is None:
-                raise RuntimeError(
-                    "No product reviews found to resolve ProductId for storefront seed.",
-                )
-            resolved_product_id = int(existing["ProductId"])
-
+        resolved_product_id = self.api.resolve_or_create_product_id(product_id)
         se_name = self.api.client.get_product_se_name(resolved_product_id)
         if not se_name:
             raise RuntimeError(f"Could not resolve SeName for product {resolved_product_id}")
@@ -106,7 +117,9 @@ class ProductReviewsSeedActions:
         if review_id is None:
             raise RuntimeError(f"Storefront seed did not create review titled '{title}'")
 
-        if not is_approved:
-            self.api.disapprove_selected([review_id])
+        if is_approved:
+            self.api.ensure_approved_review(review_id)
+        else:
+            self.api.ensure_disapproved_review(review_id)
 
         return review_id, title, review_text

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from urllib.parse import urlencode
 
 from playwright.sync_api import APIRequestContext, APIResponse
 
 from api.endpoints.catalog.categories_endpoints import CATEGORIES_ENDPOINTS
 from api.types.catalog.categories_types import CategoryPayload
 from support.session_helpers import (
+    ANTIFORGERY_TOKEN_NAME,
     attach_antiforgery_token,
     fetch_antiforgery_token,
 )
@@ -68,10 +69,14 @@ class CategoriesClient:
         return self.request.post(CATEGORIES_ENDPOINTS.delete(category_id), form=form)
 
     def delete_selected(self, selected_ids: list[int]) -> APIResponse:
+        """POST DeleteSelected with repeated selectedIds fields (ASP.NET collection binding)."""
         token = self._fetch_token()
-        data: dict[str, Any] = attach_antiforgery_token({}, token)
-        data["selectedIds"] = [str(category_id) for category_id in selected_ids]
+        fields: list[tuple[str, str]] = [(ANTIFORGERY_TOKEN_NAME, token)]
+        fields.extend(
+            ("selectedIds", str(category_id)) for category_id in selected_ids
+        )
         return self.request.post(
             CATEGORIES_ENDPOINTS.DELETE_SELECTED,
-            form=data,
+            data=urlencode(fields),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
         )

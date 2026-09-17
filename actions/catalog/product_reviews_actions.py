@@ -17,16 +17,18 @@ class ProductReviewsActions:
         self.product_reviews_page = ProductReviewsPage(page, self.base_url)
 
     def open_product_review_list(self) -> None:
-        self.product_reviews_page.navigate_to_list_via_menu()
+        self.product_reviews_page.goto_list()
 
     def search_by_text(self, text: str) -> None:
         self.product_reviews_page.fill_search_text(text)
         self.product_reviews_page.click_search()
+        self.product_reviews_page.wait_for_grid()
 
     def filter_by_approved(self, approved_option_value: str) -> None:
         """Filter list: 0=all, 1=approved only, 2=disapproved only."""
         self.product_reviews_page.select_approved_filter(approved_option_value)
         self.product_reviews_page.click_search()
+        self.product_reviews_page.wait_for_grid()
 
     def edit_title_and_review_text(
         self,
@@ -60,6 +62,7 @@ class ProductReviewsActions:
             and response.request.method == "POST",
         ):
             self.product_reviews_page.click_approve_selected()
+        self.product_reviews_page.wait_for_grid()
 
     def disapprove_selected_by_title(self, title: str) -> None:
         self.search_by_text(title)
@@ -69,26 +72,29 @@ class ProductReviewsActions:
             and response.request.method == "POST",
         ):
             self.product_reviews_page.click_disapprove_selected()
+        self.product_reviews_page.wait_for_grid()
 
-    def delete_selected_by_titles(self, titles: list[str]) -> None:
-        for title in titles:
-            self.search_by_text(title)
-            self.product_reviews_page.select_row_by_title(title)
+    def delete_selected_by_title(self, title: str) -> None:
+        self.search_by_text(title)
+        self.product_reviews_page.select_row_by_title(title)
         self.product_reviews_page.click_delete_selected()
         with self.page.expect_response(
             lambda response: "/Admin/ProductReview/DeleteSelected" in response.url
             and response.request.method == "POST",
         ):
             self.product_reviews_page.confirm_delete_selected()
+        self.product_reviews_page.wait_for_grid()
 
     def navigate_to_product_review_list(self) -> None:
         """Teardown helper: return to Product reviews list via navigation."""
-        if self.page.locator(product_reviews_selectors.GRID).is_visible():
+        grid = self.page.locator(product_reviews_selectors.GRID)
+        if grid.count() and grid.is_visible():
             return
-        if self.page.locator(product_reviews_selectors.TITLE).is_visible():
+        title = self.page.locator(product_reviews_selectors.TITLE)
+        if title.count() and title.is_visible():
             self.product_reviews_page.click_back_to_list()
             return
-        self.product_reviews_page.navigate_to_list_via_menu()
+        self.open_product_review_list()
 
     def generate_unique_title(self, prefix: str = "auto_review") -> str:
         return unique_review_title(prefix)

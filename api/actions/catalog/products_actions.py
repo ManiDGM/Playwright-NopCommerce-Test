@@ -86,9 +86,10 @@ class ProductsActions:
         published: bool = True,
         extra_fields: ProductPayload | None = None,
     ) -> APIResponse:
+        # Preserve empty string so validation scenarios can POST Name=""
         payload: ProductPayload = {
             **self.DEFAULT_CREATE_FIELDS,
-            "Name": name or unique_product_name(),
+            "Name": unique_product_name() if name is None else name,
             "Published": "true" if published else "false",
             **(extra_fields or {}),
         }

@@ -61,9 +61,11 @@ class CategoriesActions:
         published: bool = True,
         extra_fields: CategoryPayload | None = None,
     ) -> APIResponse:
+        # Preserve empty string so validation scenarios can POST Name=""
+        resolved_name = unique_category_name() if name is None else name
         payload: CategoryPayload = {
             **self.DEFAULT_CREATE_FIELDS,
-            "Name": name or unique_category_name(),
+            "Name": resolved_name,
             "Published": "true" if published else "false",
             **(extra_fields or {}),
         }

@@ -21,9 +21,11 @@ class ProductsSelectors:
     FORM: str = "#product-form"
     SKU: str = "#Sku"
     DELETE_BUTTON: str = "#product-delete"
+    DELETE_CONFIRM_MODAL: str = "#productmodel-Delete-delete-confirmation"
     DELETE_CONFIRM_SUBMIT: str = (
         "#productmodel-Delete-delete-confirmation button[type='submit']"
     )
+    DELETE_SELECTED_MODAL: str = "#delete-selected-action-confirmation"
     BACK_TO_LIST: str = "a[href*='/Admin/Product/List']"
     EDIT_LINK: str = "a[href*='/Admin/Product/Edit']"
     GRID_ROW_CHECKBOX: str = "input[name='checkbox_products']"

@@ -1,6 +1,6 @@
 """UI interactions for admin Manufacturer list/create/edit views."""
 
-from playwright.sync_api import Locator, Page
+from playwright.sync_api import Locator, Page, expect
 
 from selectors.catalog.manufacturers_selectors import manufacturers_selectors
 from selectors.common_selectors import common_selectors
@@ -11,18 +11,13 @@ class ManufacturersPage:
         self.page = page
         self.base_url = base_url.rstrip("/")
 
-    def _expand_catalog_menu_if_needed(self) -> None:
-        catalog = self.page.locator(common_selectors.NAV_CATALOG)
-        if catalog.count() == 0:
-            return
-        parent = catalog.first.locator("xpath=ancestor::li[contains(@class,'has-treeview')]")
-        if parent.count() and "menu-open" not in (parent.first.get_attribute("class") or ""):
-            catalog.first.click()
+    def navigate_to_list(self) -> None:
+        """Open Manufacturer list via direct URL (avoids flaky Catalog sidebar expand)."""
+        self.page.goto(f"{self.base_url}{manufacturers_selectors.LIST_URL_PATH}")
+        self.wait_for_grid()
 
-    def navigate_to_list_via_menu(self) -> None:
-        self._expand_catalog_menu_if_needed()
-        self.page.locator(manufacturers_selectors.NAV_MANUFACTURERS).click()
-        self.page.locator(manufacturers_selectors.GRID).wait_for(state="visible")
+    def wait_for_grid(self) -> None:
+        expect(self.page.locator(manufacturers_selectors.GRID)).to_be_visible()
 
     def click_add_new(self) -> None:
         self.page.locator(manufacturers_selectors.ADD_NEW_BUTTON).click()
@@ -68,13 +63,14 @@ class ManufacturersPage:
 
     def click_delete_on_edit(self) -> None:
         self.page.locator(manufacturers_selectors.DELETE_BUTTON).click()
+        expect(self.page.locator(manufacturers_selectors.DELETE_CONFIRM_MODAL)).to_be_visible()
 
     def confirm_delete_on_edit(self) -> None:
         self.page.locator(manufacturers_selectors.DELETE_CONFIRM_SUBMIT).click()
 
     def click_back_to_list(self) -> None:
         self.page.locator(manufacturers_selectors.BACK_TO_LIST).first.click()
-        self.page.locator(manufacturers_selectors.GRID).wait_for(state="visible")
+        self.wait_for_grid()
 
     def name_validation_error(self) -> Locator:
         return self.page.locator(common_selectors.NAME_VALIDATION)

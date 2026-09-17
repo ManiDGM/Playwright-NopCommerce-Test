@@ -8,9 +8,6 @@ class ProductReviewsSelectors:
     LIST_URL_PATH: str = "/Admin/ProductReview/List"
     EDIT_URL_PATH: str = "/Admin/ProductReview/Edit"
 
-    # Sample-data title used when searching an installed demo review.
-    SAMPLE_REVIEW_TITLE: str = "Some sample review"
-
     NAV_PRODUCT_REVIEWS: str = "a.nav-link[href*='/Admin/ProductReview/List']"
 
     SEARCH_TEXT: str = "#SearchText"
@@ -33,6 +30,8 @@ class ProductReviewsSelectors:
     TITLE_VALIDATION: str = "span.field-validation-error[data-valmsg-for='Title']"
     REVIEW_TEXT_VALIDATION: str = "span.field-validation-error[data-valmsg-for='ReviewText']"
     GRID_ROW_CHECKBOX: str = "input[name='checkbox_product_reviews']"
+    APPROVED_ICON: str = "i.true-icon, i.fas.fa-check.true-icon"
+    DISAPPROVED_ICON: str = "i.false-icon, i.fas.fa-times.false-icon"
 
 
 product_reviews_selectors = ProductReviewsSelectors()

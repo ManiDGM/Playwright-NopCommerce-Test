@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from urllib.parse import urlencode
 
 from playwright.sync_api import APIRequestContext, APIResponse
 
 from api.endpoints.catalog.manufacturers_endpoints import MANUFACTURERS_ENDPOINTS
 from api.types.catalog.manufacturers_types import ManufacturerPayload
 from support.session_helpers import (
+    ANTIFORGERY_TOKEN_NAME,
     attach_antiforgery_token,
     fetch_antiforgery_token,
 )
@@ -68,13 +69,14 @@ class ManufacturersClient:
         return self.request.post(MANUFACTURERS_ENDPOINTS.delete(manufacturer_id), form=form)
 
     def delete_selected(self, selected_ids: list[int]) -> APIResponse:
+        """POST DeleteSelected with repeated selectedIds fields (ASP.NET collection binding)."""
         token = self._fetch_token()
-        data: dict[str, Any] = attach_antiforgery_token({}, token)
-        for manufacturer_id in selected_ids:
-            data.setdefault("selectedIds", [])
-            if isinstance(data["selectedIds"], list):
-                data["selectedIds"].append(str(manufacturer_id))
+        fields: list[tuple[str, str]] = [(ANTIFORGERY_TOKEN_NAME, token)]
+        fields.extend(
+            ("selectedIds", str(manufacturer_id)) for manufacturer_id in selected_ids
+        )
         return self.request.post(
             MANUFACTURERS_ENDPOINTS.DELETE_SELECTED,
-            form=data,
+            data=urlencode(fields),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
         )

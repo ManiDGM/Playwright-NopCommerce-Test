@@ -89,12 +89,14 @@ class TestProductsApi:
         log_data("Create request payload", payload)
 
         response = products_api.create("")
+        response_text = response.text()
         log_data("Create response status", response.status)
         log_data("Create response url", response.url)
 
         assert response.status == 200
         assert "/Admin/Product/Create" in response.url
-        assert "Admin.Catalog.Products.Fields.Name.Required" in response.text()
+        assert 'data-valmsg-for="Name"' in response_text
+        assert "field-validation-error" in response_text
 
     def test_scenario_5_edit_product_name(
         self,

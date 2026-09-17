@@ -1,6 +1,6 @@
 """UI interactions for admin Product Review list/edit views."""
 
-from playwright.sync_api import Locator, Page
+from playwright.sync_api import Locator, Page, expect
 
 from selectors.catalog.product_reviews_selectors import product_reviews_selectors
 from selectors.common_selectors import common_selectors
@@ -19,10 +19,17 @@ class ProductReviewsPage:
         if parent.count() and "menu-open" not in (parent.first.get_attribute("class") or ""):
             catalog.first.click()
 
+    def goto_list(self) -> None:
+        self.page.goto(f"{self.base_url}{product_reviews_selectors.LIST_URL_PATH}")
+        self.wait_for_grid()
+
     def navigate_to_list_via_menu(self) -> None:
         self._expand_catalog_menu_if_needed()
         self.page.locator(product_reviews_selectors.NAV_PRODUCT_REVIEWS).click()
-        self.page.locator(product_reviews_selectors.GRID).wait_for(state="visible")
+        self.wait_for_grid()
+
+    def wait_for_grid(self) -> None:
+        expect(self.page.locator(product_reviews_selectors.GRID)).to_be_visible()
 
     def fill_search_text(self, text: str) -> None:
         self.page.locator(product_reviews_selectors.SEARCH_TEXT).fill(text)
@@ -40,11 +47,14 @@ class ProductReviewsPage:
         return self.grid().locator("tbody tr").filter(has_text=title)
 
     def open_edit_for_title(self, title: str) -> None:
-        self.row_containing_title(title).locator("a.btn").first.click()
-        self.page.locator(product_reviews_selectors.TITLE).wait_for(state="visible")
+        row = self.row_containing_title(title)
+        expect(row).to_be_visible()
+        row.locator("a.btn").first.click()
+        expect(self.page.locator(product_reviews_selectors.TITLE)).to_be_visible()
 
     def select_row_by_title(self, title: str) -> None:
         row = self.row_containing_title(title)
+        expect(row).to_be_visible()
         row.locator(product_reviews_selectors.GRID_ROW_CHECKBOX).check()
 
     def fill_title(self, title: str) -> None:
@@ -76,7 +86,7 @@ class ProductReviewsPage:
 
     def click_back_to_list(self) -> None:
         self.page.locator(product_reviews_selectors.BACK_TO_LIST).first.click()
-        self.page.locator(product_reviews_selectors.GRID).wait_for(state="visible")
+        self.wait_for_grid()
 
     def title_validation_error(self) -> Locator:
         return self.page.locator(product_reviews_selectors.TITLE_VALIDATION)
@@ -98,3 +108,11 @@ class ProductReviewsPage:
 
     def delete_selected_button(self) -> Locator:
         return self.page.locator(common_selectors.DELETE_SELECTED_BUTTON)
+
+    def approved_icon_in_row(self, title: str) -> Locator:
+        return self.row_containing_title(title).locator(product_reviews_selectors.APPROVED_ICON)
+
+    def disapproved_icon_in_row(self, title: str) -> Locator:
+        return self.row_containing_title(title).locator(
+            product_reviews_selectors.DISAPPROVED_ICON,
+        )

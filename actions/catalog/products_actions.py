@@ -4,6 +4,7 @@ from playwright.sync_api import Page
 
 from api.actions.catalog.products_actions import unique_product_name, unique_product_sku
 from pages.catalog.products_page import ProductsPage
+from selectors.catalog.products_selectors import products_selectors
 
 
 class ProductsActions:
@@ -13,7 +14,7 @@ class ProductsActions:
         self.products_page = ProductsPage(page, self.base_url)
 
     def open_product_list(self) -> None:
-        self.products_page.navigate_to_list_via_menu()
+        self.products_page.navigate_to_list()
 
     def create_product(self, name: str, sku: str | None = None) -> None:
         self.products_page.click_add_new()
@@ -43,9 +44,11 @@ class ProductsActions:
         self.products_page.click_delete_on_edit()
         self.products_page.confirm_delete_on_edit()
 
-    def delete_selected_products(self, names: list[str]) -> None:
+    def delete_selected_products(self, *, search_term: str, names: list[str]) -> None:
+        """Select multiple rows under one search so DataTables redraw does not clear checks."""
+        self.search_by_name(search_term)
         for name in names:
-            self.search_by_name(name)
+            self.products_page.row_containing_name(name).wait_for(state="visible")
             self.products_page.select_row_by_name(name)
         self.products_page.click_delete_selected()
         self.products_page.confirm_delete_selected()
@@ -55,15 +58,11 @@ class ProductsActions:
         self.products_page.click_go_to_sku()
 
     def navigate_to_product_list(self) -> None:
-        """Teardown helper: return to Product list via navigation."""
-        from selectors.catalog.products_selectors import products_selectors
-
-        if self.page.locator(products_selectors.GRID).is_visible():
+        """Teardown helper: return to Product list (goto avoids modal/nav races)."""
+        grid = self.page.locator(products_selectors.GRID)
+        if grid.count() and grid.is_visible():
             return
-        if self.page.locator(products_selectors.FORM).is_visible():
-            self.products_page.click_back_to_list()
-            return
-        self.products_page.navigate_to_list_via_menu()
+        self.products_page.navigate_to_list()
 
     def generate_unique_name(self, prefix: str = "auto") -> str:
         return unique_product_name(prefix)

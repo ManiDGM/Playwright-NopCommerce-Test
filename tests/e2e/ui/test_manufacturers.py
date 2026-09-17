@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 import pytest
 from playwright.sync_api import Page, expect
@@ -19,25 +20,28 @@ def log_data(label: str, data: object) -> None:
     logger.info("%s:\n%s", label, json.dumps(data, indent=2, default=str))
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def manufacturers_ui(page: Page, base_url: str) -> ManufacturersActions:
     actions = ManufacturersActions(page, base_url)
     actions.open_manufacturer_list()
     return actions
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def api_manufacturers(api_request_context) -> ApiManufacturersActions:
     return ApiManufacturersActions(api_request_context)
+
+
+@pytest.fixture(autouse=True)
+def _teardown_to_manufacturer_list(manufacturers_ui: ManufacturersActions):
+    yield
+    manufacturers_ui.navigate_to_manufacturer_list()
 
 
 class TestManufacturers:
     @classmethod
     def setup_class(cls) -> None:
         cls._created_names: list[str] = []
-
-    def teardown_method(self, manufacturers_ui: ManufacturersActions) -> None:
-        manufacturers_ui.navigate_to_manufacturer_list()
 
     def test_scenario_1_view_manufacturer_list(self, manufacturers_ui: ManufacturersActions) -> None:
         log_data("Scenario", {"title": "View the manufacturer list"})
@@ -68,7 +72,7 @@ class TestManufacturers:
         self._created_names.append(name)
 
         expect(manufacturers_ui.page).to_have_url(
-            lambda url: "/Admin/Manufacturer/List" in url,
+            re.compile(r".*/Admin/Manufacturer/List(?:\?.*)?$")
         )
         expect(manufacturers_ui.manufacturers_page.success_alert()).to_be_visible()
         manufacturers_ui.search_by_name(name)
@@ -82,7 +86,7 @@ class TestManufacturers:
         manufacturers_ui.create_manufacturer_with_empty_name()
 
         expect(manufacturers_ui.page).to_have_url(
-            lambda url: "/Admin/Manufacturer/Create" in url,
+            re.compile(r".*/Admin/Manufacturer/Create(?:\?.*)?$")
         )
         expect(manufacturers_ui.manufacturers_page.name_validation_error()).to_be_visible()
 
@@ -101,7 +105,7 @@ class TestManufacturers:
         self._created_names.append(new_name)
 
         expect(manufacturers_ui.page).to_have_url(
-            lambda url: "/Admin/Manufacturer/List" in url,
+            re.compile(r".*/Admin/Manufacturer/List(?:\?.*)?$")
         )
         manufacturers_ui.search_by_name(new_name)
         expect(manufacturers_ui.manufacturers_page.row_containing_name(new_name)).to_be_visible()
@@ -119,7 +123,7 @@ class TestManufacturers:
         manufacturers_ui.delete_manufacturer_from_edit(name)
 
         expect(manufacturers_ui.page).to_have_url(
-            lambda url: "/Admin/Manufacturer/List" in url,
+            re.compile(r".*/Admin/Manufacturer/List(?:\?.*)?$")
         )
         manufacturers_ui.search_by_name(name)
         expect(manufacturers_ui.manufacturers_page.row_containing_name(name)).to_have_count(0)
@@ -129,21 +133,30 @@ class TestManufacturers:
         manufacturers_ui: ManufacturersActions,
         api_manufacturers: ApiManufacturersActions,
     ) -> None:
-        name_one, response_one = api_manufacturers.create_random()
-        name_two, response_two = api_manufacturers.create_random()
-        log_data("API seed create statuses", {
-            "first": response_one.status,
-            "second": response_two.status,
-        })
+        search_term = manufacturers_ui.generate_unique_name("auto_bulk")
+        name_one = f"{search_term}_one"
+        name_two = f"{search_term}_two"
+        response_one = api_manufacturers.create(name_one)
+        response_two = api_manufacturers.create(name_two)
+        log_data(
+            "API seed create statuses",
+            {
+                "searchTerm": search_term,
+                "first": response_one.status,
+                "second": response_two.status,
+            },
+        )
         assert response_one.status in (200, 302), response_one.text()
         assert response_two.status in (200, 302), response_two.text()
 
         log_data("Delete selected targets", [name_one, name_two])
-        manufacturers_ui.delete_selected_manufacturers([name_one, name_two])
+        manufacturers_ui.delete_selected_manufacturers(
+            search_term=search_term,
+            names=[name_one, name_two],
+        )
 
-        manufacturers_ui.search_by_name(name_one)
+        manufacturers_ui.search_by_name(search_term)
         expect(manufacturers_ui.manufacturers_page.row_containing_name(name_one)).to_have_count(0)
-        manufacturers_ui.search_by_name(name_two)
         expect(manufacturers_ui.manufacturers_page.row_containing_name(name_two)).to_have_count(0)
 
     def test_scenario_8_filter_manufacturers_by_published_status(

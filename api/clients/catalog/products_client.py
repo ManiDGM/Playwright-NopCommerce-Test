@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import Any
+from urllib.parse import urlencode
 
 from playwright.sync_api import APIRequestContext, APIResponse
 
 from api.endpoints.catalog.products_endpoints import PRODUCTS_ENDPOINTS
 from api.types.catalog.products_types import ProductPayload
 from support.session_helpers import (
+    ANTIFORGERY_TOKEN_NAME,
     attach_antiforgery_token,
     fetch_antiforgery_token,
 )
@@ -74,15 +75,17 @@ class ProductsClient:
         return self.request.post(PRODUCTS_ENDPOINTS.delete(product_id), form=form)
 
     def delete_selected(self, selected_ids: list[int]) -> APIResponse:
+        # Playwright form=dict list values do not bind to ICollection<int>;
+        # repeated selectedIds keys match jQuery traditional / ASP.NET Core binding.
         token = self._fetch_token()
-        data: dict[str, Any] = attach_antiforgery_token({}, token)
-        for product_id in selected_ids:
-            data.setdefault("selectedIds", [])
-            if isinstance(data["selectedIds"], list):
-                data["selectedIds"].append(str(product_id))
+        pairs: list[tuple[str, str]] = [
+            (ANTIFORGERY_TOKEN_NAME, token),
+            *[("selectedIds", str(product_id)) for product_id in selected_ids],
+        ]
         return self.request.post(
             PRODUCTS_ENDPOINTS.DELETE_SELECTED,
-            form=data,
+            data=urlencode(pairs),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
     def go_to_sku(self, sku: str) -> APIResponse:

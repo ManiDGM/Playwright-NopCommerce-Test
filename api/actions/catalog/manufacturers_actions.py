@@ -56,9 +56,11 @@ class ManufacturersActions:
         published: bool = True,
         extra_fields: ManufacturerPayload | None = None,
     ) -> APIResponse:
+        # Preserve empty string so validation scenarios can POST Name=""
+        resolved_name = unique_manufacturer_name() if name is None else name
         payload: ManufacturerPayload = {
             **self.DEFAULT_CREATE_FIELDS,
-            "Name": name or unique_manufacturer_name(),
+            "Name": resolved_name,
             "Published": "true" if published else "false",
             **(extra_fields or {}),
         }

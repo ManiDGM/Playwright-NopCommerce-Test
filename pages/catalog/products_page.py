@@ -1,6 +1,6 @@
 """UI interactions for admin Product list/create/edit views."""
 
-from playwright.sync_api import Locator, Page
+from playwright.sync_api import Locator, Page, expect
 
 from selectors.catalog.products_selectors import products_selectors
 from selectors.common_selectors import common_selectors
@@ -11,30 +11,27 @@ class ProductsPage:
         self.page = page
         self.base_url = base_url.rstrip("/")
 
-    def _expand_catalog_menu_if_needed(self) -> None:
-        catalog = self.page.locator(common_selectors.NAV_CATALOG)
-        if catalog.count() == 0:
-            return
-        parent = catalog.first.locator(
-            "xpath=ancestor::li[contains(@class,'has-treeview')]"
-        )
-        if parent.count() and "menu-open" not in (parent.first.get_attribute("class") or ""):
-            catalog.first.click()
+    def navigate_to_list(self) -> None:
+        """Open Product list via direct URL (avoids flaky Catalog sidebar expand)."""
+        self.page.goto(f"{self.base_url}{products_selectors.LIST_URL_PATH}")
+        self.wait_for_grid()
 
     def navigate_to_list_via_menu(self) -> None:
-        self._expand_catalog_menu_if_needed()
-        self.page.locator(products_selectors.NAV_PRODUCTS).click()
-        self.page.locator(products_selectors.GRID).wait_for(state="visible")
+        self.navigate_to_list()
+
+    def wait_for_grid(self) -> None:
+        expect(self.page.locator(products_selectors.GRID)).to_be_visible()
 
     def click_add_new(self) -> None:
         self.page.locator(products_selectors.ADD_NEW_BUTTON).click()
-        self.page.locator(products_selectors.FORM).wait_for(state="visible")
+        expect(self.page.locator(products_selectors.FORM)).to_be_visible()
+        expect(self.page.locator(common_selectors.NAME)).to_be_visible()
 
     def fill_name(self, name: str) -> None:
         self.page.locator(common_selectors.NAME).fill(name)
 
     def clear_name(self) -> None:
-        self.page.locator(common_selectors.NAME).fill("")
+        self.fill_name("")
 
     def fill_sku(self, sku: str) -> None:
         self.page.locator(products_selectors.SKU).fill(sku)
@@ -62,7 +59,8 @@ class ProductsPage:
 
     def open_edit_for_name(self, name: str) -> None:
         self.row_containing_name(name).locator(products_selectors.EDIT_LINK).click()
-        self.page.locator(products_selectors.FORM).wait_for(state="visible")
+        expect(self.page.locator(products_selectors.FORM)).to_be_visible()
+        expect(self.page.locator(common_selectors.NAME)).to_be_visible()
 
     def select_row_by_name(self, name: str) -> None:
         row = self.row_containing_name(name)
@@ -70,19 +68,23 @@ class ProductsPage:
 
     def click_delete_selected(self) -> None:
         self.page.locator(common_selectors.DELETE_SELECTED_BUTTON).click()
+        expect(self.page.locator(products_selectors.DELETE_SELECTED_MODAL)).to_be_visible()
 
     def confirm_delete_selected(self) -> None:
-        self.page.locator(common_selectors.DELETE_SELECTED_CONFIRM).click()
+        with self.page.expect_response(lambda response: "DeleteSelected" in response.url):
+            self.page.locator(common_selectors.DELETE_SELECTED_CONFIRM).click()
+        self.wait_for_grid()
 
     def click_delete_on_edit(self) -> None:
         self.page.locator(products_selectors.DELETE_BUTTON).click()
+        expect(self.page.locator(products_selectors.DELETE_CONFIRM_MODAL)).to_be_visible()
 
     def confirm_delete_on_edit(self) -> None:
         self.page.locator(products_selectors.DELETE_CONFIRM_SUBMIT).click()
 
     def click_back_to_list(self) -> None:
         self.page.locator(products_selectors.BACK_TO_LIST).first.click()
-        self.page.locator(products_selectors.GRID).wait_for(state="visible")
+        self.wait_for_grid()
 
     def name_validation_error(self) -> Locator:
         return self.page.locator(common_selectors.NAME_VALIDATION)
