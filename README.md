@@ -147,5 +147,4 @@ Optional:
 pytest tests/e2e/ui --headed --slowmo 300   # slow down actions (ms)
 pytest tests/e2e/ui --headed -k categories  # one feature by name
 ```
-contexts and `api_request_context`.
 
