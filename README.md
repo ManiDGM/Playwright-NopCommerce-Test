@@ -147,43 +147,5 @@ Optional:
 pytest tests/e2e/ui --headed --slowmo 300   # slow down actions (ms)
 pytest tests/e2e/ui --headed -k categories  # one feature by name
 ```
+contexts and `api_request_context`.
 
-UI/API fixtures in `tests/conftest.py` load `.env`, create admin `storage_state` once per session (`.auth/admin.json`), and reuse it for browser contexts and `api_request_context`.
-
-## Auth pattern (nopCommerce)
-
-1. UI login at `/login` → persist Playwright `storage_state` (`.auth/admin.json`).
-2. API clients reuse the same cookies via `api_request_context`.
-3. Before admin POSTs: GET a list page, parse `__RequestVerificationToken`, attach with `attach_antiforgery_token`.
-
-No bearer `POST_TOKEN` — cookie session + antiforgery only.
-
-## Selector convention
-
-nopCommerce does **not** use `data-testid`. Prefer stable attributes:
-
-* `#Email`, `#Password` on `/login`
-* `#Name`, `#search-categories`, `#categories-grid` on admin list/create forms
-
-Centralize every selector in `selectors/` modules — never inline in specs.
-
-## Imports
-
-```python
-import actions
-import pages
-import selectors
-from support.session_helpers import (
-    attach_antiforgery_token,
-    fetch_antiforgery_token,
-    login_as_admin_with_session,
-)
-
-# UI
-actions.LoginActions(page).login_as_admin_with_session()
-selectors.login_selectors.EMAIL
-
-# API POST body
-token = fetch_antiforgery_token(api_request_context, "/Admin/Category/List")
-payload = attach_antiforgery_token({"SearchCategoryName": "test"}, token)
-```
